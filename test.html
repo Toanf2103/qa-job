@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gợi ý Kỹ năng theo Ngành nghề</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      padding: 2rem; 
+      max-width: 700px; 
+      margin: auto;
+      line-height: 1.5;
+    }
+    
+    h1 {
+      color: #2c3e50;
+      margin-bottom: 1.5rem;
+    }
+    
+    .input-group {
+      margin-bottom: 1rem;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+    }
+    
+    select, input, button { 
+      padding: 0.7rem; 
+      margin-bottom: 1rem; 
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    
+    button:hover {
+      background-color: #2980b9;
+    }
+    
+    button:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    
+    #result {
+      margin-top: 2rem;
+      padding: 1rem;
+      border-radius: 4px;
+    }
+    
+    .loading {
+      color: #7f8c8d;
+      font-style: italic;
+    }
+    
+    .error {
+      color: #e74c3c;
+      background-color: #fadbd8;
+      padding: 1rem;
+      border-radius: 4px;
+    }
+    
+    ul { 
+      padding-left: 1.5rem; 
+      margin-top: 1rem; 
+    }
+    
+    li { 
+      margin-bottom: 0.8rem; 
+    }
+    
+    .note {
+      font-size: 0.8rem;
+      color: #7f8c8d;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gợi ý Kỹ năng theo Ngành nghề</h1>
+  
+  <div class="input-group">
+    <label for="apiType">Chọn loại AI:</label>
+    <select id="apiType">
+      <option value="openai">OpenAI (ChatGPT)</option>
+      <option value="gemini">Google Gemini</option>
+    </select>
+  </div>
+  
+  <div class="input-group">
+    <label for="apiKey">API Key:</label>
+    <input id="apiKey" type="password" placeholder="Nhập API key..." />
+    <p class="note">Lưu ý: API key chỉ được sử dụng để gọi API và không được lưu trữ.</p>
+  </div>
+  
+  <div class="input-group">
+    <label for="jobInput">Tên ngành nghề:</label>
+    <input id="jobInput" type="text" placeholder="Ví dụ: Kỹ sư phần mềm, Nhà thiết kế đồ họa, ..." />
+  </div>
+  
+  <button id="submitBtn" onclick="submitJob()">Lấy danh sách kỹ năng</button>
+  <div id="result"></div>
+
+  <script>
+    // Đối tượng lưu trữ trạng thái
+    const state = {
+      loading: false
+    };
+    
+    // Cập nhật UI dựa trên trạng thái
+    function updateUI() {
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = state.loading;
+      submitBtn.innerText = state.loading ? 'Đang xử lý...' : 'Lấy danh sách kỹ năng';
+    }
+    
+    async function getJobSkills(jobTitle, config) {
+      try {
+        // Kiểm tra đầu vào
+        if (!jobTitle || typeof jobTitle !== 'string') {
+          throw new Error('Tên ngành nghề không hợp lệ');
+        }
+        
+        if (!config || typeof config !== 'object') {
+          throw new Error('Cấu hình API không hợp lệ');
+        }
+        
+        if (!config.apiType || !['openai', 'gemini'].includes(config.apiType)) {
+          throw new Error('API type phải là "openai" hoặc "gemini"');
+        }
+        
+        if (!config.apiKey) {
+          throw new Error('API key không được để trống');
+        }
+
+        // Tạo prompt yêu cầu cụ thể
+        const prompt = `Liệt kê 10 kỹ năng quan trọng và cần thiết nhất cho ngành nghề "${jobTitle}". 
+        Trả về một mảng JSON chứa các chuỗi, mỗi chuỗi là một kỹ năng, không có giải thích hay nội dung nào khác.
+        Ví dụ định dạng trả về: ["Kỹ năng 1", "Kỹ năng 2", "Kỹ năng 3", ...]`;
+
+        // Gọi API tương ứng
+        return config.apiType === 'openai'
+          ? await callOpenAI(prompt, config)
+          : await callGemini(prompt, config);
+      } catch (error) {
+        console.error('Lỗi khi lấy kỹ năng:', error);
+        throw error;
+      }
+    }
+
+    async function callOpenAI(prompt, config) {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({
+            model: config.model || 'gpt-3.5-turbo',
+            messages: [
+              { 
+                role: 'system', 
+                content: 'Bạn là một trợ lý AI chuyên về phân tích nghề nghiệp. Trả lời dưới dạng mảng JSON chứa các chuỗi.' 
+              },
+              { 
+                role: 'user', 
+                content: prompt 
+              }
+            ],
+            temperature: config.temperature || 0.7
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(`Lỗi OpenAI: ${data.error?.message || 'Không xác định'}`);
+        }
+        
+        const content = data.choices[0]?.message?.content || '';
+        return extractSkills(content);
+      } catch (error) {
+        console.error('Lỗi khi gọi OpenAI API:', error);
+        throw error;
+      }
+    }
+
+    async function callGemini(prompt, config) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${config.apiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{ 
+              parts: [{ 
+                text: prompt 
+              }] 
+            }],
+            generationConfig: { 
+              temperature: config.temperature || 0.7 
+            }
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(`Lỗi Gemini: ${data.error?.message || 'Không xác định'}`);
+        }
+        
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        return extractSkills(content);
+      } catch (error) {
+        console.error('Lỗi khi gọi Gemini API:', error);
+        throw error;
+      }
+    }
+
+    function extractSkills(content) {
+      try {
+        // Thử tìm mảng JSON trong nội dung
+        const jsonMatch = content.match(/\[[\s\S]*?\]/);
+        if (jsonMatch) {
+          try {
+            return JSON.parse(jsonMatch[0]);
+          } catch {
+            // Nếu không phân tích được JSON, tiếp tục xuống các phương pháp khác
+          }
+        }
+        
+        // Thử phân tích toàn bộ nội dung nếu đó là JSON
+        try {
+          const parsedJson = JSON.parse(content);
+          if (Array.isArray(parsedJson)) {
+            return parsedJson;
+          }
+        } catch {
+          // Nếu không phải JSON, tiếp tục xuống phương pháp khác
+        }
+        
+        // Trích xuất các dòng bắt đầu bằng dấu - hoặc số.
+        const lines = content.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0 && (line.startsWith('-') || /^\d+\./.test(line)))
+          .map(line => line.replace(/^-|\d+\.\s*/, '').trim());
+          
+        if (lines.length > 0) {
+          return lines;
+        }
+        
+        // Nếu không có kết quả, phân tách bằng dấu xuống dòng và lọc các dòng trống
+        return content.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
+      } catch (error) {
+        console.error('Lỗi khi trích xuất kỹ năng:', error);
+        // Nếu mọi cách đều thất bại, trả về nội dung gốc trong một mảng
+        return [content];
+      }
+    }
+
+    async function submitJob() {
+      const jobInput = document.getElementById('jobInput');
+      const apiKeyInput = document.getElementById('apiKey');
+      const apiTypeSelect = document.getElementById('apiType');
+      const resultDiv = document.getElementById('result');
+      
+      const job = jobInput.value.trim();
+      const apiKey = apiKeyInput.value.trim();
+      const apiType = apiTypeSelect.value;
+      
+      // Kiểm tra dữ liệu đầu vào
+      if (!job) {
+        resultDiv.innerHTML = '<div class="error">Vui lòng nhập tên ngành nghề</div>';
+        return;
+      }
+      
+      if (!apiKey) {
+        resultDiv.innerHTML = '<div class="error">Vui lòng nhập API key</div>';
+        return;
+      }
+      
+      // Cập nhật trạng thái loading
+      state.loading = true;
+      updateUI();
+      resultDiv.innerHTML = '<div class="loading">Đang lấy dữ liệu kỹ năng cho ngành nghề "' + job + '"...</div>';
+
+      // Cấu hình API
+      const config = {
+        apiType: apiType,
+        apiKey: apiKey,
+        model: 'gpt-3.5-turbo', // Mặc định cho OpenAI
+        temperature: 0.5
+      };
+
+      try {
+        const skills = await getJobSkills(job, config);
+        
+        if (skills && skills.length > 0) {
+          resultDiv.innerHTML = `
+            <h3>Kỹ năng cần thiết cho ngành nghề "${job}":</h3>
+            <ul>${skills.map(s => `<li>${s}</li>`).join('')}</ul>
+          `;
+        } else {
+          resultDiv.innerHTML = '<div class="error">Không tìm thấy kỹ năng phù hợp hoặc có lỗi khi xử lý phản hồi từ API.</div>';
+        }
+      } catch (err) {
+        resultDiv.innerHTML = `<div class="error">Lỗi: ${err.message}</div>`;
+      } finally {
+        // Cập nhật trạng thái sau khi hoàn thành
+        state.loading = false;
+        updateUI();
+      }
+    }
+    
+    // Thêm sự kiện nhấn Enter cho ô nhập liệu
+    document.getElementById('jobInput').addEventListener('keypress', function(event) {
+      if (event.key === 'Enter') {
+        submitJob();
+      }
+    });
+    
+    // Thêm sự kiện nhấn Enter cho ô API key
+    document.getElementById('apiKey').addEventListener('keypress', function(event) {
+      if (event.key === 'Enter') {
+        submitJob();
+      }
+    });
+  </script>
+</body>
+</html>
