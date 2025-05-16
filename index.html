@@ -93,12 +93,23 @@
         }
       }
 
-      // Xoay và chọn người thắng
+      // Xoay và luôn dừng lại ở "I"
       function spinWheel() {
         if (isSpinning) return;
         isSpinning = true;
 
-        const spinAngle = Math.random() * 360 + 720; // ít nhất 2 vòng
+        // Xác định vị trí của "I" trong mảng
+        const targetIndex = names.indexOf("I");
+        if (targetIndex === -1) return; // Nếu không tìm thấy "I"
+        
+        // Tính toán góc để dừng ở "I"
+        const angleStep = 360 / names.length;
+        // Tính toán góc cần quay để dừng ở phần "I"
+        // + 0.5 để dừng ở giữa phần "I"
+        const targetAngle = 360 - (targetIndex + 0.5) * angleStep;
+        
+        // Góc xoay cuối cùng = các vòng quay đầy đủ + góc đến mục tiêu
+        const spinAngle = 720 + targetAngle; // Ít nhất 2 vòng + góc để dừng ở "I"
         const spinTime = 4000;
         const start = performance.now();
 
@@ -119,15 +130,10 @@
           if (progress < 1) {
             requestAnimationFrame(animate);
           } else {
-            // Tính toán người thắng từ góc xoay
-            const angleStep = 360 / names.length;
-            const normalizedAngle = (360 - (angle % 360)) % 360; // Góc đã chuẩn hóa
-            const selectedIndex = Math.floor(normalizedAngle / angleStep);
-            
-            // Hiển thị người thắng bằng SweetAlert2
+            // Hiển thị kết quả bằng SweetAlert2
             Swal.fire({
               title: '🎉 Kết quả!',
-              text: 'Người được chọn: ' + names[selectedIndex],
+              text: 'Người được chọn: I',
               icon: 'success',
               confirmButtonText: 'OK',
               confirmButtonColor: '#28a745'
